@@ -1,0 +1,57 @@
+version: "{build}"
+
+branches:
+    only:
+        - master
+        # - CI
+
+environment:
+    matrix:
+        - msvc: 2017
+          APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+        - msvc: 2019
+          APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+
+platform:
+#   - Win32
+    - x64
+
+configuration:
+    - Debug
+    - Release
+#    - RelWithDebInfo
+
+# We want the git revision for versioning,
+# so shallow clones don't work.
+clone_depth: 1
+
+clone_folder: C:\projects\CrabNet
+
+install:
+    - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+
+before_build:
+    - cmd: git submodule update --init --recursive
+    - cmd: sh %APPVEYOR_BUILD_FOLDER%\CI\before_script.msvc.sh -c %configuration% -p %PLATFORM% -v %msvc% -V -i %APPVEYOR_BUILD_FOLDER%\install
+
+build_script:
+    - cmd: if %PLATFORM%==Win32 set build=MSVC%msvc%_32
+    - cmd: if %PLATFORM%==x64 set build=MSVC%msvc%_64
+    - cmd: msbuild %build%\CrabNet.sln /t:RakNetLibStatic /p:Configuration=%configuration% /m:2 /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+    - cmd: cmake --install %build% --config %configuration%
+
+after_build:
+    - cmd: if %PLATFORM%==x64 7z a CrabNet_MSVC%msvc%_%platform%_%configuration%_%appveyor_repo_commit%.zip %APPVEYOR_BUILD_FOLDER%\install -xr"!*.pdb"
+
+test: off
+
+#notifications:
+#    - provider: Email
+#    to:
+#        -
+#    on_build_failure: true
+#    on_build_status_changed: true
+
+artifacts:
+  - path: CrabNet_MSVC%msvc%_%platform%_%configuration%_%appveyor_repo_commit%.zip
+    name: CrabNet_MSVC%msvc%_%platform%_%configuration%_%appveyor_repo_commit%
